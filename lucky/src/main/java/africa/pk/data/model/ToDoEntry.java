@@ -12,6 +12,8 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Document
 public class ToDoEntry {
+
+    private String userName;
     @Id
     private String id;
     private String title;

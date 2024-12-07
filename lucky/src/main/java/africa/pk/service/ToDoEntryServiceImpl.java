@@ -1,10 +1,12 @@
 package africa.pk.service;
 
+import africa.pk.data.model.ToDo;
 import africa.pk.data.model.ToDoEntry;
 import africa.pk.data.repository.ToDoEntryRepository;
 import africa.pk.dto.request.ToDoEntryRequestDto;
 import africa.pk.dto.response.ToDoEntryResponseDto;
 import africa.pk.exception.InvalidInput;
+import africa.pk.exception.UserNotFoundException;
 import africa.pk.util.ToDoEntryMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -100,6 +102,11 @@ public class ToDoEntryServiceImpl implements ToDoEntryService{
     @Override
     public ToDoEntry getToDoEntryByTitle(String title) {
         return toDoEntryRepository.findByTitle(title);
+    }
+
+    @Override
+    public ToDo findUserByUsername(String userName) {
+        return toDoEntryRepository.findUserByUserName(userName).orElseThrow(()-> new UserNotFoundException("User does not exist"));
     }
 
 }

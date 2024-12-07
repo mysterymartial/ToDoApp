@@ -14,11 +14,11 @@ public class ToDoResponseDto {
     private String email;
     private String message;
     private String isLocked;
-    private String id;
-    private String title;
-    private String description;
-    private String status;
-    private LocalDate dueDate;
+//    private String id;
+//    private String title;
+//    private String description;
+//    private String status;
+//    private LocalDate dueDate;
     private List<ToDoEntry> activities = new ArrayList<>();
 
 }

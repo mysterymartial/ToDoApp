@@ -1,5 +1,6 @@
 package africa.pk.service;
 
+import africa.pk.data.model.ToDo;
 import africa.pk.data.model.ToDoEntry;
 import africa.pk.dto.request.ToDoEntryRequestDto;
 import africa.pk.dto.response.ToDoEntryResponseDto;
@@ -16,5 +17,5 @@ public interface ToDoEntryService {
     ToDoEntry getToDoEntryByid(String id);
 
     ToDoEntry getToDoEntryByTitle(String title);
-
+    ToDo findUserByUsername(String userName);
 }

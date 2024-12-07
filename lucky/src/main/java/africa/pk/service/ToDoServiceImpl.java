@@ -116,7 +116,6 @@ public class ToDoServiceImpl implements ToDoServices{
 
         toDoRepository.save(currentUser);
 
-        // Prepare and return the response
         ToDoResponseDto response = new ToDoResponseDto();
         response.setUserName(currentUser.getUserName());
         response.setMessage("Activity added successfully");
@@ -165,34 +164,34 @@ public class ToDoServiceImpl implements ToDoServices{
 //    public ToDoResponseDto updateActivity(ToDoEntryRequestDto toDoDetails) {
 //        ToDo currentUser = (ToDo) httpSession.getAttribute("currentUser");
 //
-//        // Validate if the current user exists
+//
 //        if (currentUser == null) {
 //            throw new AuthorizationExpection("User is not authenticated");
 //        }
 //
-//        // Step 2: Find the activity to be updated using the ID from the request DTO
+//
 //        ToDoEntry activityToUpdate = toDoEntryService.getToDoEntryByid(toDoDetails.getId());
 //
-//        // Step 3: Check if activity exists
+//
 //        if (activityToUpdate == null) {
 //            throw new InvalidInput("Activity not found");
 //        }
 //
-//        // Step 4: Update the activity fields with the data from the request DTO
+//
 //        activityToUpdate.setTitle(toDoDetails.getTitle());
 //        activityToUpdate.setDescription(toDoDetails.getDescription());
 //        activityToUpdate.setStatus(toDoDetails.getStatus());
 //        activityToUpdate.setDueDate(toDoDetails.getDueDate());
 //
-//        // Step 5: Save the updated activity in the user's activities list
+//
 //        toDoRepository.save(currentUser);
 //
-//        // Step 6: Prepare and return the response DTO
+//
 //        ToDoResponseDto response = new ToDoResponseDto();
 //        response.setUserName(currentUser.getUserName());
 //        response.setMessage("Activity updated successfully");
 //
-//        // Step 7: Convert activities to response DTOs and include them in the response
+//
 //        List<ToDoEntry> activityResponses = currentUser.getActivities().stream()
 //                .map(activity -> new ToDoEntry(
 //                        activity.getId(),
@@ -214,7 +213,7 @@ public class ToDoServiceImpl implements ToDoServices{
             throw new InvalidInput("Invalid request");
         }
 
-        // Validate if either title or ID is provided
+
         if ((toDoDetails.getTitle() == null || toDoDetails.getTitle().isBlank())
                 && toDoDetails.getId().equals(null)) {
             throw new InvalidInput("Either title or a valid ID must be provided");
@@ -227,34 +226,33 @@ public class ToDoServiceImpl implements ToDoServices{
 
         ToDoEntry entry = null;
 
-        // Search activity by title
         if (toDoDetails.getTitle() != null && !toDoDetails.getTitle().isBlank()) {
             entry = toDoEntryService.getToDoEntryByTitle(toDoDetails.getTitle());
         }
 
-        // If no title was found, search by ID
+
         if (entry == null && toDoDetails.getId().equals(null)) {
             entry = toDoEntryService.getToDoEntryByid(toDoDetails.getId());
         }
 
-        // If no entry found, throw an exception
+
         if (entry == null) {
             throw new InvalidInput("Activity not found with the given title or ID");
         }
 
-        // Return the activity response DTO
+
         ToDoResponseDto response = new ToDoResponseDto();
         response.setUserName(currentUser.getUserName());
         response.setMessage("Activity found successfully");
 
-        // Map the found entry to a response DTO
+
         ToDoEntryResponseDto entryResponseDto = ToDoEntryMapper.toDoEntryResponseDto(entry);
         response.setActivities(List.of(entry));
 
         return response;
 
 
-        // Other methods...
+
     }
 
     @Override

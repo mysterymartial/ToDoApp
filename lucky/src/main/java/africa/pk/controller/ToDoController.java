@@ -14,11 +14,15 @@ import org.springframework.web.bind.annotation.*;
 
 @Controller
 @RequestMapping("api/todo")
+@CrossOrigin(origins = "*")
 public class ToDoController {
 @Autowired
     private ToDoServices toDoServices;
 @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody ToDoRequestDto dtoDetails) {
+    if (!dtoDetails.getEmail().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+        return ResponseEntity.badRequest().body("Invalid email address");
+    }
     try {
         ToDoResponseDto responseDto = toDoServices.register(dtoDetails);
         return ResponseEntity.ok(responseDto);
@@ -35,6 +39,7 @@ public class ToDoController {
 }
 @PostMapping("/login")
 public ResponseEntity<?> login(@RequestBody ToDoRequestDto dtoDetails){
+
     try {
         ToDoResponseDto responseDto = toDoServices.login(dtoDetails);
         return ResponseEntity.ok(responseDto);

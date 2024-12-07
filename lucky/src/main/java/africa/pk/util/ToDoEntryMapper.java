@@ -10,6 +10,7 @@ public class ToDoEntryMapper {
             toDoEntry.setTitle(dtoDetalies.getTitle());
             toDoEntry.setDescription(dtoDetalies.getDescription());
             toDoEntry.setStatus(dtoDetalies.getStatus());
+            toDoEntry.setUserName(dtoDetalies.getUserName());
             return toDoEntry;
     }
 
