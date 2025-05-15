@@ -18,7 +18,7 @@ public class ToDoEntry {
     private String id;
     private String title;
     private String description;
-    private String status;
+    private String status = "uncompleted";
     private LocalDate dueDate = LocalDate.now();
 
 }

@@ -8,11 +8,17 @@ import africa.pk.dto.response.ToDoResponseDto;
 public interface ToDoServices {
     ToDoResponseDto login(ToDoRequestDto toDoDetails);
     ToDoResponseDto register(ToDoRequestDto toDoDetails);
+
+    //ToDoResponseDto updateActivity(ToDoEntryRequestDto toDoDetails);
+
     ToDoResponseDto logout();
     ToDoResponseDto addActivity(ToDoEntryRequestDto toDoDetails);
     ToDoResponseDto deleteActivity(ToDoEntryRequestDto toDoDetails);
-    ToDoResponseDto updateActivity(ToDoEntryRequestDto toDoDetails);
+    //ToDoResponseDto updateActivity(ToDoEntryRequestDto toDoDetails);
     ToDoResponseDto searchActivity(ToDoEntryRequestDto toDoDetails);
     ToDo findUserByUsername(String userName);
+    ToDoResponseDto getAllActivities(String userName);
+    ToDoResponseDto updateStatus(ToDoEntryRequestDto toDoDetails);
+
 
 }

@@ -1,4 +1,4 @@
-package africa.pk.util;
+package africa.pk.config;
 
 import africa.pk.exception.DuplicateExpection;
 import org.springframework.http.HttpStatus;

@@ -7,265 +7,234 @@ import africa.pk.dto.request.ToDoEntryRequestDto;
 import africa.pk.dto.request.ToDoRequestDto;
 import africa.pk.dto.response.ToDoEntryResponseDto;
 import africa.pk.dto.response.ToDoResponseDto;
-import africa.pk.exception.AuthorizationExpection;
 import africa.pk.exception.DuplicateExpection;
 import africa.pk.exception.InvalidInput;
 import africa.pk.exception.UserNotFoundException;
-import africa.pk.util.ToDoEntryMapper;
 import africa.pk.util.ToDoMapper;
-import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
 import java.util.ArrayList;
 import java.util.List;
-
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
-public class ToDoServiceImpl implements ToDoServices{
+@RequiredArgsConstructor
+public class ToDoServiceImpl implements ToDoServices {
+    private static final Logger logger = LoggerFactory.getLogger(ToDoServiceImpl.class);
+
     @Autowired
-    private ToDoRepository toDoRepository;
+    private final ToDoRepository toDoRepository;
     @Autowired
-    private HttpSession httpSession;
+    private final ToDoEntryService toDoEntryService;
     @Autowired
-    private ToDoEntryService toDoEntryService;
+    private final JwtService jwtService;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public ToDoResponseDto login(ToDoRequestDto toDoDetails) {
-        if(toDoDetails.getUserName() == null || toDoDetails.getUserName().isBlank()){
+        validateLoginInput(toDoDetails);
+        ToDo foundUser = authenticateUser(toDoDetails);
+        String token = jwtService.generateToken(foundUser);
+        return createLoginResponse(foundUser, token);
+    }
+
+    private void validateLoginInput(ToDoRequestDto toDoDetails) {
+        if (toDoDetails.getUserName() == null || toDoDetails.getUserName().isBlank()) {
             throw new InvalidInput("Username is required to login");
         }
-        if(toDoDetails.getPassword() == null || toDoDetails.getPassword().isBlank()){
+        if (toDoDetails.getPassword() == null || toDoDetails.getPassword().isBlank()) {
             throw new InvalidInput("Password is required to login");
         }
+    }
+
+    private ToDo authenticateUser(ToDoRequestDto toDoDetails) {
         ToDo foundUser = toDoRepository.findByUserName(toDoDetails.getUserName());
-        if(foundUser == null || !foundUser.getPassword().equals(toDoDetails.getPassword())){
-            throw new InvalidInput("invalid username or password");
+        if (foundUser == null || !passwordEncoder.matches(toDoDetails.getPassword(), foundUser.getPassword())) {
+            throw new InvalidInput("Invalid username or password");
         }
-        httpSession.setAttribute("currentUser", foundUser);
-        ToDoResponseDto response = ToDoMapper.toDoResponseDto(foundUser);
+        return foundUser;
+    }
+
+    private ToDoResponseDto createLoginResponse(ToDo user, String token) {
+        ToDoResponseDto response = ToDoMapper.toDoResponseDto(user);
+        response.setToken(token);
         response.setIsLocked("false");
-        if(response.getIsLocked().equals(true)){
-            throw new AuthorizationExpection("you are logged out");
-
-        }
-
-
-
+        response.setMessage("Login successful");
+        response.setActivities(user.getActivities());
         return response;
     }
 
     @Override
     public ToDoResponseDto register(ToDoRequestDto toDoDetails) {
-        if(toDoDetails.getUserName()== null || toDoDetails.getUserName().isBlank()){
-            throw  new InvalidInput("username cannot be blank");
+        validateRegistrationInput(toDoDetails);
+        ToDo newUser = createNewUser(toDoDetails);
+        ToDo savedUser = toDoRepository.save(newUser);
+        String token = jwtService.generateToken(savedUser);
+        return createRegistrationResponse(savedUser, token);
+    }
+
+    private void validateRegistrationInput(ToDoRequestDto toDoDetails) {
+        if (toDoDetails.getUserName() == null || toDoDetails.getUserName().isBlank()) {
+            throw new InvalidInput("Username cannot be blank");
         }
         if (toDoDetails.getEmail() == null || !toDoDetails.getEmail().contains("@")) {
             throw new InvalidInput("Invalid email address");
         }
-        ToDo userExist = toDoRepository.findByUserName(toDoDetails.getUserName());
-        if(userExist != null) {
-            throw new DuplicateExpection("user with username already exist");
+        if (toDoRepository.findByUserName(toDoDetails.getUserName()) != null) {
+            throw new DuplicateExpection("User with username already exists");
         }
+    }
+
+    private ToDo createNewUser(ToDoRequestDto toDoDetails) {
         ToDo newUser = ToDoMapper.toToDo(toDoDetails);
+        newUser.setPassword(passwordEncoder.encode(toDoDetails.getPassword()));
         newUser.setActivities(new ArrayList<>());
-        ToDo savedUser = toDoRepository.save(newUser);
-        httpSession.setAttribute("currentUser", savedUser);
-        ToDoResponseDto response = ToDoMapper.toDoResponseDto(savedUser);
+        return newUser;
+    }
+
+    private ToDoResponseDto createRegistrationResponse(ToDo user, String token) {
+        ToDoResponseDto response = ToDoMapper.toDoResponseDto(user);
+        response.setToken(token);
         response.setIsLocked("false");
         response.setMessage("Registration successful");
-
         return response;
-
     }
 
     @Override
-    public ToDoResponseDto logout() {
-        ToDo currentUser = (ToDo) httpSession.getAttribute("currentUser");
-        if(currentUser == null) {
-            throw new AuthorizationExpection("current user not  available");
+    public ToDoResponseDto searchActivity(ToDoEntryRequestDto toDoDetails) {
+        logger.info("Searching for activity with title: {}", toDoDetails.getTitle());
+        ToDo currentUser = findUserByUsername(toDoDetails.getUserName());
+
+        if (currentUser.getActivities() == null || currentUser.getActivities().isEmpty()) {
+            return createActivityResponse(currentUser, "No activities found");
         }
-        if(currentUser.isLocked()){
-            throw new AuthorizationExpection("you are logged out");
-        }
-        currentUser.setLocked(true);
-        httpSession.removeAttribute("currentUser");
-        ToDoResponseDto toDoResponseDto = new ToDoResponseDto();
-        toDoResponseDto.setUserName(currentUser.getUserName());
-        toDoResponseDto.setMessage("Successfully logged out");
-        return toDoResponseDto;
+
+        List<ToDoEntry> matchingActivities = currentUser.getActivities().stream()
+                .filter(activity -> activity.getTitle().toLowerCase()
+                        .contains(toDoDetails.getTitle().toLowerCase()))
+                .collect(Collectors.toList());
+
+        ToDoResponseDto response = createActivityResponse(currentUser,
+                matchingActivities.isEmpty() ? "No matching activities found" : "Activities found successfully");
+        response.setActivities(matchingActivities);
+        return response;
     }
 
     @Override
-    public ToDoResponseDto addActivity(ToDoEntryRequestDto toDoDetails) {
-        ToDo currentUser = (ToDo) httpSession.getAttribute("currentUser");
-        if (currentUser == null) {
-            throw new AuthorizationExpection("User is not authenticated");
-        }
-        if (toDoDetails == null) {
-            throw new InvalidInput("Invalid request");
-        }
+    public ToDoResponseDto updateStatus(ToDoEntryRequestDto toDoDetails) {
+        logger.info("Updating status for activity ID: {}", toDoDetails.getId());
+        ToDo currentUser = findUserByUsername(toDoDetails.getUserName());
 
-        ToDoEntryResponseDto dtoResponse = toDoEntryService.createToDoList(toDoDetails);
+        ToDoEntry activityToUpdate = currentUser.getActivities().stream()
+                .filter(activity -> activity.getId().equals(toDoDetails.getId()))
+                .findFirst()
+                .orElseThrow(() -> new InvalidInput("Activity not found"));
 
-
-        ToDoEntry newActivity = toToDoEntry(dtoResponse);
-
-
-        currentUser.getActivities().add(newActivity);
-
-
+        String newStatus = "completed".equals(activityToUpdate.getStatus()) ? "uncompleted" : "completed";
+        activityToUpdate.setStatus(newStatus);
         toDoRepository.save(currentUser);
 
-        ToDoResponseDto response = new ToDoResponseDto();
-        response.setUserName(currentUser.getUserName());
-        response.setMessage("Activity added successfully");
-
-        return response;
+        return createActivityResponse(currentUser, "Status updated successfully");
     }
 
     @Override
     public ToDoResponseDto deleteActivity(ToDoEntryRequestDto toDoDetails) {
-        ToDo currentUser = (ToDo) httpSession.getAttribute("currentUser");
+        logger.info("Deleting activity with ID: {}", toDoDetails.getId());
+        ToDo currentUser = findUserByUsername(toDoDetails.getUserName());
 
-
-        if (currentUser == null) {
-            throw new AuthorizationExpection("User is not authenticated");
+        if (currentUser.getActivities() == null) {
+            currentUser.setActivities(new ArrayList<>());
         }
 
+        boolean removed = currentUser.getActivities().removeIf(activity ->
+                activity.getId().equals(toDoDetails.getId()));
 
-        Object activityToDelete = toDoEntryService.getToDoEntryById(toDoDetails.getId());
-
-
-        if (activityToDelete == null) {
+        if (!removed) {
             throw new InvalidInput("Activity not found");
         }
 
+        toDoRepository.save(currentUser);
+        return createActivityResponse(currentUser, "Activity deleted successfully");
+    }
 
-        currentUser.getActivities().remove(activityToDelete);
+    @Override
+    public ToDoResponseDto addActivity(ToDoEntryRequestDto toDoDetails) {
+        logger.info("Adding new activity for user: {}", toDoDetails.getUserName());
+        ToDo currentUser = findUserByUsername(toDoDetails.getUserName());
 
+        validateActivityInput(toDoDetails);
 
+        ToDoEntry newActivity = new ToDoEntry();
+        newActivity.setId(UUID.randomUUID().toString());
+        newActivity.setTitle(toDoDetails.getTitle());
+        newActivity.setDescription(toDoDetails.getDescription());
+        newActivity.setStatus("uncompleted");
+
+        if (currentUser.getActivities() == null) {
+            currentUser.setActivities(new ArrayList<>());
+        }
+
+        currentUser.getActivities().add(newActivity);
         toDoRepository.save(currentUser);
 
-
-        ToDoResponseDto response = new ToDoResponseDto();
-        response.setUserName(currentUser.getUserName());
-        response.setMessage("Activity deleted successfully");
-
-        return response;
-
+        return createActivityResponse(currentUser, "Activity added successfully");
     }
 
     @Override
-    public ToDoResponseDto updateActivity(ToDoEntryRequestDto toDoDetails) {
-        return null;
-    }
-
-//    @Override
-//    public ToDoResponseDto updateActivity(ToDoEntryRequestDto toDoDetails) {
-//        ToDo currentUser = (ToDo) httpSession.getAttribute("currentUser");
-//
-//
-//        if (currentUser == null) {
-//            throw new AuthorizationExpection("User is not authenticated");
-//        }
-//
-//
-//        ToDoEntry activityToUpdate = toDoEntryService.getToDoEntryByid(toDoDetails.getId());
-//
-//
-//        if (activityToUpdate == null) {
-//            throw new InvalidInput("Activity not found");
-//        }
-//
-//
-//        activityToUpdate.setTitle(toDoDetails.getTitle());
-//        activityToUpdate.setDescription(toDoDetails.getDescription());
-//        activityToUpdate.setStatus(toDoDetails.getStatus());
-//        activityToUpdate.setDueDate(toDoDetails.getDueDate());
-//
-//
-//        toDoRepository.save(currentUser);
-//
-//
-//        ToDoResponseDto response = new ToDoResponseDto();
-//        response.setUserName(currentUser.getUserName());
-//        response.setMessage("Activity updated successfully");
-//
-//
-//        List<ToDoEntry> activityResponses = currentUser.getActivities().stream()
-//                .map(activity -> new ToDoEntry(
-//                        activity.getId(),
-//                        activity.getTitle(),
-//                        activity.getDescription(),
-//                        activity.getStatus(),
-//                        activity.getDueDate()))
-//                .collect(Collectors.toList());
-//        response.setActivities(activityResponses);
-//
-//        return response;
-//
-//    }
-
-    @Override
-    public ToDoResponseDto searchActivity(ToDoEntryRequestDto toDoDetails) {
-
-        if (toDoDetails == null) {
-            throw new InvalidInput("Invalid request");
-        }
-
-
-        if ((toDoDetails.getTitle() == null || toDoDetails.getTitle().isBlank())
-                && toDoDetails.getId().equals(null)) {
-            throw new InvalidInput("Either title or a valid ID must be provided");
-        }
-
-        ToDo currentUser = (ToDo) httpSession.getAttribute("currentUser");
-        if (currentUser == null) {
-            throw new AuthorizationExpection("User is not authenticated");
-        }
-
-        ToDoEntry entry = null;
-
-        if (toDoDetails.getTitle() != null && !toDoDetails.getTitle().isBlank()) {
-            entry = toDoEntryService.getToDoEntryByTitle(toDoDetails.getTitle());
-        }
-
-
-        if (entry == null && toDoDetails.getId().equals(null)) {
-            entry = toDoEntryService.getToDoEntryByid(toDoDetails.getId());
-        }
-
-
-        if (entry == null) {
-            throw new InvalidInput("Activity not found with the given title or ID");
-        }
-
-
+    public ToDoResponseDto logout() {
+        SecurityContextHolder.clearContext();
         ToDoResponseDto response = new ToDoResponseDto();
-        response.setUserName(currentUser.getUserName());
-        response.setMessage("Activity found successfully");
-
-
-        ToDoEntryResponseDto entryResponseDto = ToDoEntryMapper.toDoEntryResponseDto(entry);
-        response.setActivities(List.of(entry));
-
+        response.setMessage("Logout successful");
+        response.setToken(null);
         return response;
-
-
-
     }
 
     @Override
     public ToDo findUserByUsername(String userName) {
-        return toDoRepository.findUserByUserName(userName).orElseThrow(()-> new UserNotFoundException("User not found"));
+        ToDo user = toDoRepository.findByUserName(userName);
+        if (user == null) {
+            throw new UserNotFoundException("User not found");
+        }
+        return user;
     }
 
+    @Override
+    public ToDoResponseDto getAllActivities(String userName) {
+        logger.info("Fetching all activities for user: {}", userName);
+        ToDo user = findUserByUsername(userName);
 
-    private ToDoEntry toToDoEntry(ToDoEntryResponseDto dtoResponse) {
-        ToDoEntry toDoEntry = new ToDoEntry();
-        toDoEntry.setId(dtoResponse.getId());
-        toDoEntry.setTitle(dtoResponse.getTitle());
-        toDoEntry.setDescription(dtoResponse.getDescription());
-        return toDoEntry;
+        if (user.getActivities() == null) {
+            user.setActivities(new ArrayList<>());
+        }
+
+        ToDoResponseDto response = createActivityResponse(user,
+                user.getActivities().isEmpty() ? "No activities found" : "Activities fetched successfully");
+        return response;
+    }
+
+    private void validateActivityInput(ToDoEntryRequestDto toDoDetails) {
+        if (toDoDetails.getTitle() == null || toDoDetails.getTitle().trim().isEmpty()) {
+            throw new InvalidInput("Activity title is required");
+        }
+        if (toDoDetails.getDescription() == null || toDoDetails.getDescription().trim().isEmpty()) {
+            throw new InvalidInput("Activity description is required");
+        }
+    }
+
+    private ToDoResponseDto createActivityResponse(ToDo user, String message) {
+        ToDoResponseDto response = new ToDoResponseDto();
+        response.setUserName(user.getUserName());
+        response.setEmail(user.getEmail());
+        response.setMessage(message);
+        response.setActivities(user.getActivities());
+        response.setIsLocked("false");
+        return response;
     }
 }

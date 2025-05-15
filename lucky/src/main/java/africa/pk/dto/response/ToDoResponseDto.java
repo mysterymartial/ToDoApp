@@ -14,6 +14,7 @@ public class ToDoResponseDto {
     private String email;
     private String message;
     private String isLocked;
+    private String token;
 //    private String id;
 //    private String title;
 //    private String description;

@@ -8,105 +8,113 @@ import africa.pk.dto.response.ToDoEntryResponseDto;
 import africa.pk.exception.InvalidInput;
 import africa.pk.exception.UserNotFoundException;
 import africa.pk.util.ToDoEntryMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 import java.util.Optional;
-
+import java.util.UUID;
 
 @Service
-public class ToDoEntryServiceImpl implements ToDoEntryService{
-    @Autowired
-    private ToDoEntryRepository toDoEntryRepository;
+@RequiredArgsConstructor
+public class ToDoEntryServiceImpl implements ToDoEntryService {
+    private final ToDoEntryRepository toDoEntryRepository;
+
     @Override
     public ToDoEntryResponseDto createToDoList(ToDoEntryRequestDto entryRequestDto) {
-        if(entryRequestDto.getTitle() == null || entryRequestDto.getTitle().isBlank()) {
-            throw new InvalidInput("Title cannot be null or blank");
-        }
-        if(entryRequestDto.getDescription() == null || entryRequestDto.getDescription().isBlank()) {
-            throw new InvalidInput("Description cannot be null or blank");
-        }
+        validateTodoEntry(entryRequestDto);
         ToDoEntry entry = ToDoEntryMapper.toDoEntry(entryRequestDto);
+        entry.setId(UUID.randomUUID().toString());
+        entry.setStatus("uncompleted");
         ToDoEntry savedEntry = toDoEntryRepository.save(entry);
         return ToDoEntryMapper.toDoEntryResponseDto(savedEntry);
     }
 
     @Override
     public ToDoEntryResponseDto deleteToDoList(ToDoEntryRequestDto entryRequestDto) {
-        if(entryRequestDto.equals(null)){
-            throw new InvalidInput("Invalid ID provided");
-
-        }
-
-        ToDoEntry entry = toDoEntryRepository.findByid(entryRequestDto.getId());
-        if(entry == null){
-            throw new InvalidInput("Invalid ID provided");
-        }
+        ToDoEntry entry = getEntryById(entryRequestDto.getId());
         toDoEntryRepository.delete(entry);
         return ToDoEntryMapper.toDoEntryResponseDto(entry);
-
-
-
-
-
     }
-
-//    @Override
-//    public ToDoEntryResponseDto updateToDoList(ToDoEntryRequestDto entryRequestDto) {
-//        if(entryRequestDto.equals(null)){
-//            throw new InvalidInput("Invalid ID provided");
-//        }
-//        ToDoEntry entry = toDoEntryRepository.findByid(entryRequestDto.getId());
-//        if(entry == null){
-//            throw new InvalidInput("Invalid ID provided");
-//        }
-//        entry.setTitle(entryRequestDto.getTitle());
-//        entry.setDescription(entryRequestDto.getDescription());
-//        entry.setDueDate(entryRequestDto.getDueDate());
-//        entry.setStatus(entryRequestDto.getStatus());
-//
-//        ToDoEntry updatedEntry = toDoEntryRepository.save(entry);
-//
-//        return ToDoEntryMapper.toDoEntryResponseDto(entry);
-//    }
 
     @Override
     public ToDoEntryResponseDto searchToDoList(ToDoEntryRequestDto entryRequestDto) {
-        if(entryRequestDto == null){
-            throw new InvalidInput("Invalid request");
-        }
-        if(entryRequestDto.getTitle() == null || entryRequestDto.getTitle().isBlank()){
-            throw new InvalidInput("Title cannot be null or blank");
-        }
-        if(entryRequestDto.equals("0")){
-            throw new InvalidInput("Invalid ID provided");
-        }
+        validateSearchRequest(entryRequestDto);
         ToDoEntry entry = toDoEntryRepository.findByTitle(entryRequestDto.getTitle());
-        if(entry == null){
-            throw new InvalidInput("Invalid Title provided");
+        if (entry == null) {
+            throw new InvalidInput("No todo entry found with the given title");
         }
         return ToDoEntryMapper.toDoEntryResponseDto(entry);
     }
 
-
     @Override
-    public Object getToDoEntryById(String id) {
-
+    public Optional<ToDoEntry> getToDoEntryById(String id) {
+        if (id == null || id.isBlank()) {
+            throw new InvalidInput("ID cannot be null or empty");
+        }
         return toDoEntryRepository.findById(id);
     }
+
     @Override
-    public ToDoEntry getToDoEntryByid(String id){
-        return toDoEntryRepository.findByid(id);
+    public ToDoEntry getToDoEntryByid(String id) {
+        if (id == null || id.isBlank()) {
+            throw new InvalidInput("ID cannot be null or empty");
+        }
+        ToDoEntry entry = toDoEntryRepository.findByid(id);
+        if (entry == null) {
+            throw new InvalidInput("Todo entry not found with ID: " + id);
+        }
+        return entry;
     }
 
     @Override
     public ToDoEntry getToDoEntryByTitle(String title) {
-        return toDoEntryRepository.findByTitle(title);
+        if (title == null || title.isBlank()) {
+            throw new InvalidInput("Title cannot be null or empty");
+        }
+        ToDoEntry entry = toDoEntryRepository.findByTitle(title);
+        if (entry == null) {
+            throw new InvalidInput("Todo entry not found with title: " + title);
+        }
+        return entry;
     }
 
     @Override
     public ToDo findUserByUsername(String userName) {
-        return toDoEntryRepository.findUserByUserName(userName).orElseThrow(()-> new UserNotFoundException("User does not exist"));
+        if (userName == null || userName.isBlank()) {
+            throw new InvalidInput("Username cannot be null or empty");
+        }
+        return toDoEntryRepository.findUserByUserName(userName)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + userName));
     }
 
+    private void validateTodoEntry(ToDoEntryRequestDto entryRequestDto) {
+        if (entryRequestDto == null) {
+            throw new InvalidInput("Todo entry request cannot be null");
+        }
+        if (entryRequestDto.getTitle() == null || entryRequestDto.getTitle().isBlank()) {
+            throw new InvalidInput("Title is required");
+        }
+        if (entryRequestDto.getDescription() == null || entryRequestDto.getDescription().isBlank()) {
+            throw new InvalidInput("Description is required");
+        }
+    }
+
+    private void validateSearchRequest(ToDoEntryRequestDto entryRequestDto) {
+        if (entryRequestDto == null) {
+            throw new InvalidInput("Search request cannot be null");
+        }
+        if (entryRequestDto.getTitle() == null || entryRequestDto.getTitle().isBlank()) {
+            throw new InvalidInput("Search title is required");
+        }
+    }
+
+    private ToDoEntry getEntryById(String id) {
+        if (id == null || id.isBlank()) {
+            throw new InvalidInput("Entry ID is required");
+        }
+        ToDoEntry entry = toDoEntryRepository.findByid(id);
+        if (entry == null) {
+            throw new InvalidInput("Todo entry not found with ID: " + id);
+        }
+        return entry;
+    }
 }

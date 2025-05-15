@@ -18,4 +18,5 @@ public interface ToDoEntryService {
 
     ToDoEntry getToDoEntryByTitle(String title);
     ToDo findUserByUsername(String userName);
+
 }
